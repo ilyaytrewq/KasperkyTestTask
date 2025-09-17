@@ -4,12 +4,13 @@
 #include <openssl/evp.h>
 #include <vector>
 #include <filesystem>
+#include <fstream>
 
 class MD5Hasher {
     public:
         MD5Hasher();
         ~MD5Hasher();
-        void update(const unsigned char* data, size_t len);
+        void update(const char* data, size_t len);
         void finalize();
         std::vector<unsigned char> getDigest() const;
     
@@ -21,14 +22,22 @@ class MD5Hasher {
 
 class FileScaner {
     public:
-        FileScaner();
+        FileScaner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize = 1024);
         ~FileScaner();
-        
-    
-    private:
-        MD5Hasher hasher;
-        std::filesystem::path filePath;
+        void calculateFileHash();
+        bool isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase);
+        std::vector<unsigned char> getFileHash() const;
 
+    private:
+        std::filesystem::path filePath;
+        std::ifstream inputStream;
+        
+        char *buffer;
+        size_t bufferSize;
+
+        std::vector<unsigned char> fileHash;
+        
+        char is_infected;
 };
 
 #endif // VirusScaner_hpp
