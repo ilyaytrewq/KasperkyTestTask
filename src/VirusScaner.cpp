@@ -2,6 +2,9 @@
 #include <stdexcept>
 #include <openssl/err.h>
 
+//for debug
+#include <iostream>
+
 //##################################
 // MD5Hasher implementation
 //##################################
@@ -95,6 +98,10 @@ bool FileScaner::isInfected(const std::vector<std::vector<unsigned char>>& virus
     return false;
 }
 
+std::vector<unsigned char> FileScaner::getFileHash() const {
+    return fileHash;
+}
+
 
 //###############################
 // Virus implementation
@@ -109,7 +116,7 @@ Virus::~Virus() {}
 // VirusDatabase implementation
 //#################################
 
-VirusDatabase::VirusDatabase(std::filesystem::path &path) : dbPath(path) {}
+VirusDatabase::VirusDatabase(const std::filesystem::path &path) : dbPath(path) {}
 VirusDatabase::~VirusDatabase() {}
 
 void VirusDatabase::Init() {
@@ -149,11 +156,59 @@ void VirusDatabase::Init() {
     dbFile.close();
 }
 
-std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::vector<unsigned int> &hash) const {
+std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::vector<unsigned char> &hash) const {
     for (const auto &virus : virusDatabase) {
         if (virus.hash == hash) {
             return std::make_tuple(true, virus.name);
         }
     }
     return std::make_tuple(false, "");
+}
+
+
+//#################################
+// ScanDirectory implementation
+//#################################
+
+void ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path& dbPath, const std::filesystem::path& logPath) {
+    if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath)) {
+        throw std::runtime_error("Invalid directory path");
+    }
+    if (!std::filesystem::exists(dbPath) || !std::filesystem::is_regular_file(dbPath)) {
+        throw std::runtime_error("Invalid database file path");
+    }
+    if (!std::filesystem::exists(logPath) || !std::filesystem::is_regular_file(logPath)) {
+        throw std::runtime_error("Invalid log file path"); 
+    }
+
+    VirusDatabase virusDB(dbPath);
+    virusDB.Init(); 
+
+    for (auto const &dir_entry : std::filesystem::recursive_directory_iterator(dirPath)) {
+        if (dir_entry.is_regular_file()) {
+            std::ifstream fileStream(dir_entry.path(), std::ios::in | std::ios::binary);
+            if (!fileStream.is_open()) {
+                // Log error opening file
+                continue;
+            }
+
+            FileScaner fileScaner(std::move(fileStream), dir_entry.path());
+            try {
+                fileScaner.calculateFileHash();
+            } catch (const std::exception &e) {
+                // Log error calculating hash
+                continue;
+            }
+
+            auto [isInfected, virusName] = virusDB.InDatabase(fileScaner.getFileHash());
+            if (isInfected) {
+                // Log infection details to logPath
+                std::cout << "Infected file: " << dir_entry.path() << " Virus: " << virusName << std::endl;
+            } else {
+                // Log clean file details to logPath
+                std::cout << "Clean file: " << dir_entry.path() << std::endl;
+            }
+        }
+    }
+
 }

@@ -54,16 +54,18 @@ class Virus {
 
 class VirusDatabase {
     public:
-        VirusDatabase(std::filesystem::path &path);
+        VirusDatabase(const std::filesystem::path &path);
         ~VirusDatabase();
 
         void Init();
-        std::tuple<bool, std::string> InDatabase(const std::vector<unsigned int> &hash) const;
+        std::tuple<bool, std::string> InDatabase(const std::vector<unsigned char> &hash) const;
 
     private:
         std::filesystem::path dbPath;
         std::vector<Virus> virusDatabase;
         
 };
+
+void ScanDirectory(const std::filesystem::path& dirPath);
 
 #endif // VirusScaner_hpp
