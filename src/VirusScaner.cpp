@@ -94,3 +94,66 @@ bool FileScaner::isInfected(const std::vector<std::vector<unsigned char>>& virus
     is_infected = -1;
     return false;
 }
+
+
+//###############################
+// Virus implementation
+//###############################
+
+
+Virus::Virus(const std::vector<unsigned char>& hash, const std::string& name) : hash(hash), name(name) {}
+Virus::~Virus() {}
+
+
+//#################################
+// VirusDatabase implementation
+//#################################
+
+VirusDatabase::VirusDatabase(std::filesystem::path &path) : dbPath(path) {}
+VirusDatabase::~VirusDatabase() {}
+
+void VirusDatabase::Init() {
+    std::ifstream dbFile(dbPath, std::ios::in);
+    if (!dbFile.is_open()) {
+        throw std::runtime_error("Failed to open virus database file");
+    }
+
+    int numStirngs = 1;
+    std::string inputString;
+    while (std::getline(dbFile, inputString)) {
+        Virus virus;
+        size_t delimiterPos = inputString.find(';');
+        
+        if (delimiterPos == std::string::npos) {
+            //log error numString
+            continue; 
+        }
+        
+        virus.name = inputString.substr(delimiterPos + 1);
+        std::string hashStr = inputString.substr(0, delimiterPos);
+        
+        if (hashStr.size() != 32) {
+            //log error numString
+            continue; 
+        }
+
+        for (size_t i = 0; i < 32; i += 2) {
+            std::string byteString = hashStr.substr(i, 2);
+            virus.hash.push_back(static_cast<unsigned char>(std::stoul(byteString, nullptr, 16)));
+        }
+
+        virusDatabase.push_back(virus);
+        numStirngs++;
+    }
+
+    dbFile.close();
+}
+
+std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::vector<unsigned int> &hash) const {
+    for (const auto &virus : virusDatabase) {
+        if (virus.hash == hash) {
+            return std::make_tuple(true, virus.name);
+        }
+    }
+    return std::make_tuple(false, "");
+}

@@ -5,6 +5,8 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <string>
+#include <tuple>
 
 class MD5Hasher {
     public:
@@ -38,6 +40,30 @@ class FileScaner {
         std::vector<unsigned char> fileHash;
         
         char is_infected;
+};
+
+class Virus {
+    public:
+        std::vector<unsigned char> hash;
+        std::string name;
+
+        Virus();
+        Virus(const std::vector<unsigned char>& hash, const std::string& name);
+        ~Virus();
+};
+
+class VirusDatabase {
+    public:
+        VirusDatabase(std::filesystem::path &path);
+        ~VirusDatabase();
+
+        void Init();
+        std::tuple<bool, std::string> InDatabase(const std::vector<unsigned int> &hash) const;
+
+    private:
+        std::filesystem::path dbPath;
+        std::vector<Virus> virusDatabase;
+        
 };
 
 #endif // VirusScaner_hpp
