@@ -29,6 +29,7 @@ class FileScaner {
         void calculateFileHash();
         bool isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase);
         std::vector<unsigned char> getFileHash() const;
+        std::string getFileHashString() const;
 
     private:
         std::filesystem::path filePath;
@@ -61,11 +62,11 @@ class VirusDatabase {
         std::tuple<bool, std::string> InDatabase(const std::vector<unsigned char> &hash) const;
 
     private:
-        std::filesystem::path dbPath;
+        std::filesystem::path basePath;
         std::vector<Virus> virusDatabase;
         
 };
 
-void ScanDirectory(const std::filesystem::path& dirPath);
+void ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath); 
 
 #endif // VirusScaner_hpp

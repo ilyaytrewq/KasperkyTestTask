@@ -35,7 +35,6 @@ MD5Hasher::~MD5Hasher() {
 }
 
 void MD5Hasher::update(const char* data, size_t len) {
-
     if (1 != EVP_DigestUpdate(mdctx, data, len)) {
         throw std::runtime_error("Failed to update MD5 hash");
     }
@@ -76,10 +75,21 @@ void FileScaner::calculateFileHash() {
     do {
         inputStream.read(buffer, bufferSize);
         readBytes = inputStream.gcount();
-        hasher.update(buffer, readBytes); //add ErrorHandler
+
+        try {
+            hasher.update(buffer, readBytes); //add ErrorHandler
+        } catch (std::exception &e) {
+            throw e;
+        }
+
     } while (readBytes == bufferSize);
 
-    hasher.finalize();//ErrorHandler
+    try {
+        hasher.finalize();
+    } catch (std::exception &e) {
+        throw e;
+    }
+
     fileHash = hasher.getDigest();
 };
 
@@ -102,6 +112,15 @@ std::vector<unsigned char> FileScaner::getFileHash() const {
     return fileHash;
 }
 
+std::string FileScaner::getFileHashString() const {
+    static const char hexDigits[] = "0123456789abcdef";
+    std::string hash = "";
+    for (auto digit : this->getFileHash()) {
+        hash.push_back(hexDigits[digit >> 4]);
+        hash.push_back(hexDigits[digit & 0x0F]);
+    }
+}
+
 
 //###############################
 // Virus implementation
@@ -116,11 +135,11 @@ Virus::~Virus() {}
 // VirusDatabase implementation
 //#################################
 
-VirusDatabase::VirusDatabase(const std::filesystem::path &path) : dbPath(path) {}
+VirusDatabase::VirusDatabase(const std::filesystem::path &path) : basePath(path) {}
 VirusDatabase::~VirusDatabase() {}
 
 void VirusDatabase::Init() {
-    std::ifstream dbFile(dbPath, std::ios::in);
+    std::ifstream dbFile(basePath, std::ios::in);
     if (!dbFile.is_open()) {
         throw std::runtime_error("Failed to open virus database file");
     }
@@ -170,25 +189,32 @@ std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::vector<unsign
 // ScanDirectory implementation
 //#################################
 
-void ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path& dbPath, const std::filesystem::path& logPath) {
+void ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path& basePath, const std::filesystem::path& logPath) {
     if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath)) {
         throw std::runtime_error("Invalid directory path");
     }
-    if (!std::filesystem::exists(dbPath) || !std::filesystem::is_regular_file(dbPath)) {
+    if (!std::filesystem::exists(basePath) || !std::filesystem::is_regular_file(basePath)) {
         throw std::runtime_error("Invalid database file path");
     }
     if (!std::filesystem::exists(logPath) || !std::filesystem::is_regular_file(logPath)) {
         throw std::runtime_error("Invalid log file path"); 
     }
 
-    VirusDatabase virusDB(dbPath);
+    unsigned int cntFiles = 0, infectedFiles = 0, failesFiles = 0;
+
+    std::ofstream logOut(logPath, std::ios::out);
+
+    VirusDatabase virusDB(basePath);
     virusDB.Init(); 
 
     for (auto const &dir_entry : std::filesystem::recursive_directory_iterator(dirPath)) {
         if (dir_entry.is_regular_file()) {
+            cntFiles++;
+
             std::ifstream fileStream(dir_entry.path(), std::ios::in | std::ios::binary);
             if (!fileStream.is_open()) {
-                // Log error opening file
+                logOut << "ScanDirectory error: Failed to open file: " << dir_entry.path().string() << '\n';
+                failesFiles++;
                 continue;
             }
 
@@ -197,16 +223,20 @@ void ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::
                 fileScaner.calculateFileHash();
             } catch (const std::exception &e) {
                 // Log error calculating hash
+                logOut << "CalculateFileHash error: " << e.what() << '\n';
                 continue;
             }
 
             auto [isInfected, virusName] = virusDB.InDatabase(fileScaner.getFileHash());
             if (isInfected) {
+                infectedFiles++;
                 // Log infection details to logPath
                 std::cout << "Infected file: " << dir_entry.path() << " Virus: " << virusName << std::endl;
+                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScaner.getFileHashString() << " verdict: infected\n";
             } else {
                 // Log clean file details to logPath
                 std::cout << "Clean file: " << dir_entry.path() << std::endl;
+                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScaner.getFileHashString() << " verdict: infected\n";
             }
         }
     }
