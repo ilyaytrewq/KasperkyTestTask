@@ -1,5 +1,6 @@
 *.exe
 *.o
-dev/
 *.pdf
 *.out
+.*
+build/
