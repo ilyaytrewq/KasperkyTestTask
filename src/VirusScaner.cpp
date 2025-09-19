@@ -3,6 +3,7 @@
 #include <openssl/err.h>
 #include <atomic>
 #include <thread>
+#include <iostream>
 #include <algorithm>
 #include <mutex>
 
@@ -153,6 +154,42 @@ std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::string &hash)
 }
 
 
+
+//#################################
+// Logger implementation
+//#################################
+
+Logger::Logger(std::ofstream& ostrm, std::mutex &sharedMutex, size_t bufferSize, int countRows) : logOut(ostrm), fileMutex(sharedMutex), count(0), countRows(countRows) {
+    buffer.reserve(bufferSize);
+}
+
+Logger::~Logger() {
+    try {
+        printBuffer();
+    } catch(...) {
+        std::cerr << "printBuffer exception\n" << std::endl;
+    }
+}
+
+void Logger::logString(const std::string &s) {
+    buffer += s;
+    count++;
+    if (buffer.size() >= bufferSize || count >= countRows) {
+        printBuffer();
+    }
+}
+
+void Logger::printBuffer() {
+    count = 0;
+    if (buffer.empty()) {
+        return;
+    }
+    std::lock_guard<std::mutex> lk(fileMutex);
+    logOut << buffer;
+    buffer.clear();
+}
+
+
 //#################################
 // ScanDirectory implementation
 //#################################
@@ -175,7 +212,7 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
         throw std::runtime_error("Invalid log file path"); 
     }
 
-    std::ofstream logOut(logPath, std::ios::app | std::ios::in);
+    std::ofstream logOut(logPath, std::ios::app);
 
     VirusDatabase virusDB(basePath);
     try {
@@ -205,6 +242,7 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
     std::vector<std::thread> workers;
     std::atomic<size_t> nextIndex{0};
     auto worker = [&]() {
+        Logger logger(logOut, logMutex);
         for (;;) {
             size_t idx = nextIndex.fetch_add(1, std::memory_order_relaxed);
             if (idx >= filePaths.size()) {
@@ -216,8 +254,7 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
             std::ifstream fileStream(filePath, std::ios::in | std::ios::binary);
             if (!fileStream.is_open()) {
                 failedFiles.fetch_add(1, std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lk(logMutex);
-                logOut << "ScanDirectory warning: Failed to open file: " << filePath.string() << '\n';
+                logger.logString("ScanDirectory warning: Failed to open file: " + filePath.string() + '\n');
                 continue;
             }
             
@@ -231,20 +268,16 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
                 auto [isInfected, virusName] = virusDB.InDatabase(fileHash);
                 if (isInfected) {
                     infectedFiles.fetch_add(1, std::memory_order_relaxed);
-                    std::lock_guard<std::mutex> lk(logMutex);
-                    logOut << "File: " << filePath.string() << " hash: " << fileHash << " verdict: infected(" << virusName << ")\n";
+                    logger.logString("File: " + filePath.string() + " hash: " + fileHash + " verdict: infected(" + virusName + ")\n");
                 } else {
-                    std::lock_guard<std::mutex> lk(logMutex);
-                    logOut << "File: " << filePath.string() << " hash: " << fileHash << " verdict: clean\n";
+                    logger.logString("File: " + filePath.string() + " hash: " + fileHash + " verdict: clean\n");
                 }
             } catch (const std::exception &e) {
                 failedFiles.fetch_add(1, std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lk(logMutex);
-                logOut << "CalculateFileHash error for file " << filePath.string() << ": " << e.what() << '\n';
+                logger.logString("CalculateFileHash error for file " + filePath.string() + ": " + e.what() + '\n');
             } catch (...) {
                 failedFiles.fetch_add(1, std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lk(logMutex);
-                logOut << "Unknown error while processing file " << filePath.string() << '\n';
+                logger.logString("Unknown error while processing file " + filePath.string() + '\n');
             }
         }
     }; 
@@ -255,11 +288,12 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
     }
 
     for (auto &t : workers) {
-        if (t.joinable()) t.join();
+        if (t.joinable()) {
+            t.join();
+        }
     }
 
 
-    std::lock_guard<std::mutex> lk(logMutex);
     logOut << std::endl;
     logOut.close();
 

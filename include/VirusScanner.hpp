@@ -9,6 +9,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <mutex>
 
 class MD5Hasher {
     public:
@@ -71,6 +72,24 @@ class VirusDatabase {
         
 };
 
-std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath, size_t bufferSize = 8092, unsigned int countThreads = 0); 
+class Logger {
+    public:
+        Logger(std::ofstream& ostrm, std::mutex &sharedMutex, size_t bufferSize = 16 * 1024, int countRows = 100);
+        ~Logger();
+
+        void logString(const std::string &s);
+
+    private:
+        std::ofstream &logOut;
+        std::string buffer;
+        std::mutex &fileMutex;
+        size_t bufferSize;
+        int count;
+        int countRows;
+
+        void printBuffer();
+};
+
+std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath, size_t bufferSize = 16 * 1024 - 100, unsigned int countThreads = 0); 
 
 #endif // VirusScanner_hpp
