@@ -11,14 +11,27 @@
 class MD5Hasher {
     public:
         MD5Hasher();
-        ~MD5Hasher();
+        ~MD5Hasher() = default;
         void update(const char* data, size_t len);
         void finalize();
         std::vector<unsigned char> getDigest() const;
     
     private:
-        EVP_MD_CTX* mdctx;
-        unsigned char *digest;
+
+        struct EVP_MD_CTX_Deleter {
+            void operator()(EVP_MD_CTX *ctx) const {
+                EVP_MD_CTX_free(ctx);
+            }
+        };
+
+        struct OPENSSL_Deleter {
+            void operator()(unsigned char* ptr) const {
+                OPENSSL_free(ptr);
+            }
+        };
+
+        std::unique_ptr<EVP_MD_CTX, EVP_MD_CTX_Deleter> mdctx;
+        std::unique_ptr<unsigned char, OPENSSL_Deleter> digest;
         unsigned int digest_len;
 };
 
@@ -35,7 +48,7 @@ class FileScaner {
         std::filesystem::path filePath;
         std::ifstream inputStream;
         
-        char *buffer;
+        std::unique_ptr<char[]> buffer;
         size_t bufferSize;
 
         std::vector<unsigned char> fileHash;

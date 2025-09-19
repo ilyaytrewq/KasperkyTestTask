@@ -2,52 +2,46 @@
 #include <stdexcept>
 #include <openssl/err.h>
 
-//for debug
-#include <iostream>
-
 //##################################
 // MD5Hasher implementation
 //##################################
 
 MD5Hasher::MD5Hasher() {
-    mdctx = EVP_MD_CTX_new();
-
-    if (mdctx == nullptr) {
+    mdctx.reset(EVP_MD_CTX_new());
+    if (!mdctx) {
         throw std::runtime_error("Failed to create MD5 context");
     }
 
-    if (1 != EVP_DigestInit_ex(mdctx, EVP_md5(), nullptr)) {
-        EVP_MD_CTX_free(mdctx);
+    if (1 != EVP_DigestInit_ex(mdctx.get(), EVP_md5(), nullptr)) {
         throw std::runtime_error("Failed to initialize MD5 context");
     }
 
     digest_len = EVP_MD_size(EVP_md5());
-    digest = (unsigned char *)OPENSSL_malloc(digest_len);
-    if (digest == nullptr) {
-        EVP_MD_CTX_free(mdctx);
+    if (digest_len <= 0) {
+        throw std::runtime_error("Failed to get MD5 digest size");
+    }
+
+    digest.reset(static_cast<unsigned char *>(OPENSSL_malloc(digest_len)));
+    if (!digest) {
         throw std::runtime_error("Failed to allocate memory for digest");
     }
 }
 
-MD5Hasher::~MD5Hasher() {
-    EVP_MD_CTX_free(mdctx);
-    OPENSSL_free(digest);
-}
 
 void MD5Hasher::update(const char* data, size_t len) {
-    if (1 != EVP_DigestUpdate(mdctx, data, len)) {
+    if (1 != EVP_DigestUpdate(mdctx.get(), data, len)) {
         throw std::runtime_error("Failed to update MD5 hash");
     }
 }
 
 void MD5Hasher::finalize() {
-    if (1 != EVP_DigestFinal_ex(mdctx, digest, &digest_len)) {
+    if (1 != EVP_DigestFinal_ex(mdctx.get(), digest.get(), &digest_len)) {
         throw std::runtime_error("Failed to finalize MD5 hash");
     }
 }
 
 std::vector<unsigned char> MD5Hasher::getDigest() const {
-    return std::vector<unsigned char>(digest, digest + digest_len);
+    return std::vector<unsigned char>(digest.get(), digest.get() + digest_len);
 }
 
 
@@ -60,12 +54,11 @@ FileScaner::FileScaner(std::ifstream&& istrm, const std::filesystem::path& path,
     filePath(path),
     bufferSize(bufSize),
     is_infected(0) {
-    buffer = new char[bufSize];
+    buffer = std::make_unique<char[]>(bufferSize);
 }
 
 FileScaner::~FileScaner() {
     inputStream.close();
-    delete [] buffer;
 }
 
 void FileScaner::calculateFileHash() {
@@ -73,11 +66,11 @@ void FileScaner::calculateFileHash() {
     int readBytes = 0;
     
     do {
-        inputStream.read(buffer, bufferSize);
+        inputStream.read(buffer.get(), bufferSize);
         readBytes = inputStream.gcount();
 
         try {
-            hasher.update(buffer, readBytes); //add ErrorHandler
+            hasher.update(buffer.get(), readBytes); 
         } catch (std::exception &e) {
             throw e;
         }
@@ -94,7 +87,7 @@ void FileScaner::calculateFileHash() {
 };
 
 bool FileScaner::isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase) {
-    if (0 != is_infected){
+    if (0 != is_infected) {
         return (is_infected == 1 ? true : false);
     }
 
