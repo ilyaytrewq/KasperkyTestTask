@@ -2,6 +2,7 @@
 #define VirusScanner_hpp
 
 #include <openssl/evp.h>
+#include <vector>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -38,7 +39,7 @@ class MD5Hasher {
 
 class FileScanner {
     public:
-        FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize = 1920);
+        FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize);
         ~FileScanner();
         void calculateFileHash();
         std::array<unsigned char, 16> getFileHash() const;
@@ -70,6 +71,6 @@ class VirusDatabase {
         
 };
 
-std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath); 
+std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath, size_t bufferSize = 8092, unsigned int countThreads = 0); 
 
 #endif // VirusScanner_hpp

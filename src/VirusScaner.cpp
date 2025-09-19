@@ -1,6 +1,10 @@
 #include "VirusScanner.hpp"
 #include <stdexcept>
 #include <openssl/err.h>
+#include <atomic>
+#include <thread>
+#include <algorithm>
+#include <mutex>
 
 //##################################
 // MD5Hasher implementation
@@ -153,7 +157,14 @@ std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::string &hash)
 // ScanDirectory implementation
 //#################################
 
-std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path& basePath, const std::filesystem::path& logPath) {
+std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
+    const std::filesystem::path& dirPath, 
+    const std::filesystem::path& basePath, 
+    const std::filesystem::path& logPath,
+    size_t bufferSize, 
+    unsigned int countThreads) 
+{
+    
     if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath)) {
         throw std::runtime_error("Invalid directory path");
     }
@@ -163,8 +174,6 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(const std::fi
     if (!std::filesystem::exists(logPath) || !std::filesystem::is_regular_file(logPath)) {
         throw std::runtime_error("Invalid log file path"); 
     }
-
-    unsigned int cntFiles = 0, infectedFiles = 0, failedFiles = 0;
 
     std::ofstream logOut(logPath, std::ios::app | std::ios::in);
 
@@ -176,41 +185,83 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(const std::fi
         throw std::runtime_error("ScanDirectory error: failed initializate VirusDatabase");
     }
      
+
+    std::vector<std::filesystem::path> filePaths;
     for (auto const &dir_entry : std::filesystem::recursive_directory_iterator(dirPath)) {
         if (dir_entry.is_regular_file()) {
-            cntFiles++;
-
-            std::ifstream fileStream(dir_entry.path(), std::ios::in | std::ios::binary);
-            if (!fileStream.is_open()) {
-                logOut << "ScanDirectory warning: Failed to open file: " << dir_entry.path().string() << '\n';
-                failedFiles++;
-                continue;
-            }
-
-            FileScanner fileScanner(std::move(fileStream), dir_entry.path());
-            try {
-                fileScanner.calculateFileHash();
-            } catch (const std::exception &e) {
-                failedFiles++;
-                logOut << "CalculateFileHash error: " << e.what() << '\n';
-                continue;
-            }
-
-            std::string fileHash = fileScanner.getFileHashString();
-
-            auto [isInfected, virusName] = virusDB.InDatabase(fileHash);
-            if (isInfected) {
-                infectedFiles++;
-                logOut << "File: " << dir_entry.path().string() << " hash: " << fileHash << " verdict: infected(" << virusName << ")\n";
-            } else {
-                logOut << "File: " << dir_entry.path().string() << " hash: " << fileHash << " verdict: clean\n";
-            }
+            filePaths.push_back(dir_entry.path());
         }
     }
+    unsigned int countFiles = filePaths.size();
+    std::atomic<unsigned int> infectedFiles{0};
+    std::atomic<unsigned int> failedFiles{0};
+    std::mutex logMutex;
 
+    if(countThreads == 0){
+        countThreads = std::max(std::thread::hardware_concurrency(), 4u);
+        countThreads = std::min(countThreads, countFiles);
+    }
+
+    std::vector<std::thread> workers;
+    std::atomic<size_t> nextIndex{0};
+    auto worker = [&]() {
+        for (;;) {
+            size_t idx = nextIndex.fetch_add(1, std::memory_order_relaxed);
+            if (idx >= filePaths.size()) {
+                break;
+            }
+
+            const auto &filePath = filePaths[idx];
+
+            std::ifstream fileStream(filePath, std::ios::in | std::ios::binary);
+            if (!fileStream.is_open()) {
+                failedFiles.fetch_add(1, std::memory_order_relaxed);
+                std::lock_guard<std::mutex> lk(logMutex);
+                logOut << "ScanDirectory warning: Failed to open file: " << filePath.string() << '\n';
+                continue;
+            }
+            
+            try {
+                FileScanner fileScanner(std::move(fileStream), filePath, bufferSize);
+
+                fileScanner.calculateFileHash();
+
+                std::string fileHash = fileScanner.getFileHashString();
+
+                auto [isInfected, virusName] = virusDB.InDatabase(fileHash);
+                if (isInfected) {
+                    infectedFiles.fetch_add(1, std::memory_order_relaxed);
+                    std::lock_guard<std::mutex> lk(logMutex);
+                    logOut << "File: " << filePath.string() << " hash: " << fileHash << " verdict: infected(" << virusName << ")\n";
+                } else {
+                    std::lock_guard<std::mutex> lk(logMutex);
+                    logOut << "File: " << filePath.string() << " hash: " << fileHash << " verdict: clean\n";
+                }
+            } catch (const std::exception &e) {
+                failedFiles.fetch_add(1, std::memory_order_relaxed);
+                std::lock_guard<std::mutex> lk(logMutex);
+                logOut << "CalculateFileHash error for file " << filePath.string() << ": " << e.what() << '\n';
+            } catch (...) {
+                failedFiles.fetch_add(1, std::memory_order_relaxed);
+                std::lock_guard<std::mutex> lk(logMutex);
+                logOut << "Unknown error while processing file " << filePath.string() << '\n';
+            }
+        }
+    }; 
+
+    workers.reserve(countThreads);
+    for (unsigned int i = 0; i < countThreads; ++i) {
+        workers.emplace_back(worker);
+    }
+
+    for (auto &t : workers) {
+        if (t.joinable()) t.join();
+    }
+
+
+    std::lock_guard<std::mutex> lk(logMutex);
     logOut << std::endl;
     logOut.close();
 
-    return {cntFiles, infectedFiles, failedFiles};
-
+    return std::make_tuple(countFiles, infectedFiles.load(), failedFiles.load());
 }
