@@ -198,7 +198,8 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
     const std::filesystem::path& dirPath, 
     const std::filesystem::path& basePath, 
     const std::filesystem::path& logPath,
-    size_t bufferSize, 
+    size_t inputBufferSize,
+    size_t outputBufferSize,
     unsigned int countThreads) 
 {
     
@@ -242,7 +243,7 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
     std::vector<std::thread> workers;
     std::atomic<size_t> nextIndex{0};
     auto worker = [&]() {
-        Logger logger(logOut, logMutex);
+        Logger logger(logOut, logMutex, outputBufferSize);
         for (;;) {
             size_t idx = nextIndex.fetch_add(1, std::memory_order_relaxed);
             if (idx >= filePaths.size()) {
@@ -259,7 +260,7 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(
             }
             
             try {
-                FileScanner fileScanner(std::move(fileStream), filePath, bufferSize);
+                FileScanner fileScanner(std::move(fileStream), filePath, inputBufferSize);
 
                 fileScanner.calculateFileHash();
 
