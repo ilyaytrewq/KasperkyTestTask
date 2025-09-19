@@ -2,11 +2,12 @@
 #define VirusScanner_hpp
 
 #include <openssl/evp.h>
-#include <vector>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 
 class MD5Hasher {
     public:
@@ -14,7 +15,7 @@ class MD5Hasher {
         ~MD5Hasher() = default;
         void update(const char* data, size_t len);
         void finalize();
-        std::vector<unsigned char> getDigest() const;
+        std::array<unsigned char, 16> getDigest() const;
     
     private:
 
@@ -37,11 +38,10 @@ class MD5Hasher {
 
 class FileScanner {
     public:
-        FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize = 1024);
+        FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize = 1920);
         ~FileScanner();
         void calculateFileHash();
-        bool isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase);
-        std::vector<unsigned char> getFileHash() const;
+        std::array<unsigned char, 16> getFileHash() const;
         std::string getFileHashString() const;
 
     private:
@@ -51,19 +51,9 @@ class FileScanner {
         std::unique_ptr<char[]> buffer;
         size_t bufferSize;
 
-        std::vector<unsigned char> fileHash;
+        std::array<unsigned char, 16> fileHash;
         
         char is_infected;
-};
-
-class Virus {
-    public:
-        std::vector<unsigned char> hash;
-        std::string name;
-
-        Virus() = default;
-        Virus(const std::vector<unsigned char>& hash, const std::string& name);
-        ~Virus() = default;
 };
 
 class VirusDatabase {
@@ -72,14 +62,13 @@ class VirusDatabase {
         ~VirusDatabase() = default;
 
         void Init(std::ofstream &logOut);
-        std::tuple<bool, std::string> InDatabase(const std::vector<unsigned char> &hash) const;
+        std::tuple<bool, std::string> InDatabase(const std::string &hash) const;
 
     private:
         std::filesystem::path basePath;
-        std::vector<Virus> virusDatabase;
+        std::unordered_map<std::string, std::string> virusDatabase;
         
 };
-
 
 std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath); 
 

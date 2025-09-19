@@ -40,8 +40,10 @@ void MD5Hasher::finalize() {
     }
 }
 
-std::vector<unsigned char> MD5Hasher::getDigest() const {
-    return std::vector<unsigned char>(digest.get(), digest.get() + digest_len);
+std::array<unsigned char, 16> MD5Hasher::getDigest() const {
+    std::array<unsigned char, 16> result;
+    std::copy(digest.get(), digest.get() + digest_len, result.begin());
+    return result;
 }
 
 
@@ -86,22 +88,7 @@ void FileScanner::calculateFileHash() {
     fileHash = hasher.getDigest();
 };
 
-bool FileScanner::isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase) {
-    if (0 != is_infected) {
-        return (is_infected == 1 ? true : false);
-    }
-
-    for (const auto &virus : virusDatabase) {
-        if (virus == fileHash){
-            is_infected = 1;
-            return true;
-        }
-    }
-    is_infected = -1;
-    return false;
-}
-
-std::vector<unsigned char> FileScanner::getFileHash() const {
+std::array<unsigned char, 16> FileScanner::getFileHash() const {
     return fileHash;
 }
 
@@ -114,14 +101,6 @@ std::string FileScanner::getFileHashString() const {
     }
     return hash;
 }
-
-
-//###############################
-// Virus implementation
-//###############################
-
-
-Virus::Virus(const std::vector<unsigned char>& hash, const std::string& name) : hash(hash), name(name) {}
 
 
 //#################################
@@ -139,7 +118,6 @@ void VirusDatabase::Init(std::ofstream &logOut) {
     int rowNum = 1;
     std::string inputString;
     while (std::getline(dbFile, inputString)) {
-        Virus virus;
         size_t delimiterPos = inputString.find(';');
         
         if (delimiterPos == std::string::npos) {
@@ -147,7 +125,7 @@ void VirusDatabase::Init(std::ofstream &logOut) {
             continue; 
         }
         
-        virus.name = inputString.substr(delimiterPos + 1);
+        std::string virusName = inputString.substr(delimiterPos + 1);
         std::string hashStr = inputString.substr(0, delimiterPos);
         
         if (hashStr.size() != 32) {
@@ -155,23 +133,17 @@ void VirusDatabase::Init(std::ofstream &logOut) {
             continue; 
         }
 
-        for (size_t i = 0; i < 32; i += 2) {
-            std::string byteString = hashStr.substr(i, 2);
-            virus.hash.push_back(static_cast<unsigned char>(std::stoul(byteString, nullptr, 16)));
-        }
-
-        virusDatabase.push_back(virus);
+        virusDatabase[hashStr] = virusName;
         rowNum++;
     }
 
     dbFile.close();
 }
 
-std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::vector<unsigned char> &hash) const {
-    for (const auto &virus : virusDatabase) {
-        if (virus.hash == hash) {
-            return std::make_tuple(true, virus.name);
-        }
+std::tuple<bool, std::string> VirusDatabase::InDatabase(const std::string &hash) const {
+    auto it = virusDatabase.find(hash);
+    if (it != virusDatabase.end()) {
+        return std::make_tuple(true, it->second);
     }
     return std::make_tuple(false, "");
 }
@@ -224,12 +196,14 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(const std::fi
                 continue;
             }
 
-            auto [isInfected, virusName] = virusDB.InDatabase(fileScanner.getFileHash());
+            std::string fileHash = fileScanner.getFileHashString();
+
+            auto [isInfected, virusName] = virusDB.InDatabase(fileHash);
             if (isInfected) {
                 infectedFiles++;
-                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScanner.getFileHashString() << " verdict: infected(" << virusName << ")\n";
+                logOut << "File: " << dir_entry.path().string() << " hash: " << fileHash << " verdict: infected(" << virusName << ")\n";
             } else {
-                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScanner.getFileHashString() << " verdict: clean\n";
+                logOut << "File: " << dir_entry.path().string() << " hash: " << fileHash << " verdict: clean\n";
             }
         }
     }
