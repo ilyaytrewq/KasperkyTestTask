@@ -1,5 +1,5 @@
-#ifndef VirusScaner_hpp
-#define VirusScaner_hpp
+#ifndef VirusScanner_hpp
+#define VirusScanner_hpp
 
 #include <openssl/evp.h>
 #include <vector>
@@ -35,18 +35,18 @@ class MD5Hasher {
         unsigned int digest_len;
 };
 
-class FileScaner {
+class FileScanner {
     public:
-        FileScaner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize = 1024);
-        ~FileScaner();
+        FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize = 1024);
+        ~FileScanner();
         void calculateFileHash();
         bool isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase);
         std::vector<unsigned char> getFileHash() const;
         std::string getFileHashString() const;
 
     private:
-        std::filesystem::path filePath;
         std::ifstream inputStream;
+        std::filesystem::path filePath;
         
         std::unique_ptr<char[]> buffer;
         size_t bufferSize;
@@ -61,15 +61,15 @@ class Virus {
         std::vector<unsigned char> hash;
         std::string name;
 
-        Virus();
+        Virus() = default;
         Virus(const std::vector<unsigned char>& hash, const std::string& name);
-        ~Virus();
+        ~Virus() = default;
 };
 
 class VirusDatabase {
     public:
         VirusDatabase(const std::filesystem::path &path);
-        ~VirusDatabase();
+        ~VirusDatabase() = default;
 
         void Init(std::ofstream &logOut);
         std::tuple<bool, std::string> InDatabase(const std::vector<unsigned char> &hash) const;
@@ -80,6 +80,7 @@ class VirusDatabase {
         
 };
 
+
 std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath); 
 
-#endif // VirusScaner_hpp
+#endif // VirusScanner_hpp

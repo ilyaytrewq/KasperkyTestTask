@@ -1,4 +1,4 @@
-#include "../include/VirusScaner.hpp"
+#include "VirusScanner.hpp"
 #include <stdexcept>
 #include <openssl/err.h>
 
@@ -46,10 +46,10 @@ std::vector<unsigned char> MD5Hasher::getDigest() const {
 
 
 //##################################
-// FileScaner implementation
+// FileScanner implementation
 //##################################
 
-FileScaner::FileScaner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize) :
+FileScanner::FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize) :
     inputStream(std::move(istrm)),
     filePath(path),
     bufferSize(bufSize),
@@ -57,13 +57,13 @@ FileScaner::FileScaner(std::ifstream&& istrm, const std::filesystem::path& path,
     buffer = std::make_unique<char[]>(bufferSize);
 }
 
-FileScaner::~FileScaner() {
+FileScanner::~FileScanner() {
     inputStream.close();
 }
 
-void FileScaner::calculateFileHash() {
+void FileScanner::calculateFileHash() {
     MD5Hasher hasher = MD5Hasher();
-    int readBytes = 0;
+    std::streamsize readBytes = 0;
     
     do {
         inputStream.read(buffer.get(), bufferSize);
@@ -75,7 +75,7 @@ void FileScaner::calculateFileHash() {
             throw e;
         }
 
-    } while (readBytes == bufferSize);
+    } while ((size_t)readBytes == bufferSize);
 
     try {
         hasher.finalize();
@@ -86,7 +86,7 @@ void FileScaner::calculateFileHash() {
     fileHash = hasher.getDigest();
 };
 
-bool FileScaner::isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase) {
+bool FileScanner::isInfected(const std::vector<std::vector<unsigned char>>& virusDatabase) {
     if (0 != is_infected) {
         return (is_infected == 1 ? true : false);
     }
@@ -101,17 +101,18 @@ bool FileScaner::isInfected(const std::vector<std::vector<unsigned char>>& virus
     return false;
 }
 
-std::vector<unsigned char> FileScaner::getFileHash() const {
+std::vector<unsigned char> FileScanner::getFileHash() const {
     return fileHash;
 }
 
-std::string FileScaner::getFileHashString() const {
+std::string FileScanner::getFileHashString() const {
     static const char hexDigits[] = "0123456789abcdef";
     std::string hash = "";
     for (auto digit : this->getFileHash()) {
         hash.push_back(hexDigits[digit >> 4]);
         hash.push_back(hexDigits[digit & 0x0F]);
     }
+    return hash;
 }
 
 
@@ -121,7 +122,6 @@ std::string FileScaner::getFileHashString() const {
 
 
 Virus::Virus(const std::vector<unsigned char>& hash, const std::string& name) : hash(hash), name(name) {}
-Virus::~Virus() {}
 
 
 //#################################
@@ -129,7 +129,6 @@ Virus::~Virus() {}
 //#################################
 
 VirusDatabase::VirusDatabase(const std::filesystem::path &path) : basePath(path) {}
-VirusDatabase::~VirusDatabase() {}
 
 void VirusDatabase::Init(std::ofstream &logOut) {
     std::ifstream dbFile(basePath, std::ios::in);
@@ -195,7 +194,7 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(const std::fi
 
     unsigned int cntFiles = 0, infectedFiles = 0, failedFiles = 0;
 
-    std::ofstream logOut(logPath, std::ios::out);
+    std::ofstream logOut(logPath, std::ios::app | std::ios::in);
 
     VirusDatabase virusDB(basePath);
     try {
@@ -216,23 +215,28 @@ std::tuple<unsigned int, unsigned int, unsigned int> ScanDirectory(const std::fi
                 continue;
             }
 
-            FileScaner fileScaner(std::move(fileStream), dir_entry.path());
+            FileScanner fileScanner(std::move(fileStream), dir_entry.path());
             try {
-                fileScaner.calculateFileHash();
+                fileScanner.calculateFileHash();
             } catch (const std::exception &e) {
                 failedFiles++;
                 logOut << "CalculateFileHash error: " << e.what() << '\n';
                 continue;
             }
 
-            auto [isInfected, virusName] = virusDB.InDatabase(fileScaner.getFileHash());
+            auto [isInfected, virusName] = virusDB.InDatabase(fileScanner.getFileHash());
             if (isInfected) {
                 infectedFiles++;
-                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScaner.getFileHashString() << " verdict: infected\n";
+                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScanner.getFileHashString() << " verdict: infected(" << virusName << ")\n";
             } else {
-                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScaner.getFileHashString() << " verdict: clean\n";
+                logOut << "File: " << dir_entry.path().string() << " hash: " << fileScanner.getFileHashString() << " verdict: clean\n";
             }
         }
     }
+
+    logOut << std::endl;
+    logOut.close();
+
+    return {cntFiles, infectedFiles, failedFiles};
 
 }

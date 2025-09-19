@@ -13,17 +13,9 @@ private:
     std::ostream &out;
 
 public:
-    TimerGuard(std::string message, std::ostream &out) : message(message), out(out)
-    {
-        start_time = std::chrono::steady_clock::now();
-    }
+    TimerGuard(std::string message, std::ostream &out);
 
-    ~TimerGuard()
-    {
-        auto end_time = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        out <<  message << " time in milliseconds " << duration.count() << "\n";
-    }
+    ~TimerGuard();
 };
 
 #endif // TIMEGUARD_HPP
