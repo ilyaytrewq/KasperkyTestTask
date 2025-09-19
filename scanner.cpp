@@ -1,4 +1,4 @@
-#include "include/VirusScaner.hpp"
+#include "include/VirusScanner.hpp"
 #include "include/TimeGuard.hpp"
 #include <filesystem>
 #include <stdexcept>
@@ -52,11 +52,7 @@ void parseArgs(int argc, char *argv[], std::filesystem::path &dirPath, std::file
 }
 
 int main(int argc, char* argv[]) {
-    TimerGuard timer("Virus scanner", std::cout);    
-
-    for (int i = 0; i < argc; ++i) {
-        std::cout << argv[i] << std::endl;
-    }
+    TimerGuard timer("Virus scanner execution time: ", std::cout);    
 
     std::filesystem::path dirPath = "", basePath = "", logPath = "";
     try {
@@ -66,12 +62,14 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: " << argv[0] << " --base <file> --log <file> --path <directory>" << std::endl;
         return 1;
     }
-   
 
     try {
-        ScanDirectory(dirPath, basePath, logPath);
+        auto[cntFiles, infectedFiles, failedFiles] = ScanDirectory(dirPath, basePath, logPath);
+        std::cout << "Total count of scanned files: " << cntFiles << '\n';
+        std::cout << "Count of infected files: " << infectedFiles << '\n';
+        std::cout << "Count of failed files: " << failedFiles << '\n';
     } catch (const std::exception &e) {
-        
+        std::cerr << "ScanDirectory error: " << e.what() << std::endl;
     }
 
     return 0;
