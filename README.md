@@ -41,6 +41,7 @@ cd KasperkyTestTask
 ```bash
 cmake -S . -B build
 cmake --build build/
+ctest --test-dir build/ (--verbose)
 ```
 
 После сборки бинарник будет находиться в `build/bin/scanner` (на Windows — `scanner.exe`).
