@@ -90,6 +90,9 @@ class Logger {
         void printBuffer();
 };
 
+
+
+void ParseArgs(int argc, char *argv[], std::filesystem::path &dirPath, std::filesystem::path &basePath, std::filesystem::path &logPath, size_t &inputBufferSize, size_t &outputBufferSize, size_t &threadCount);
 std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath, size_t inputBufferSize = 16 * 1024 - 100, size_t outputBufferSize = 16 * 1024, unsigned int countThreads = 0); 
 
 #endif // VirusScanner_hpp

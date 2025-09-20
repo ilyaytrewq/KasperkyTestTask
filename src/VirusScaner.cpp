@@ -5,6 +5,7 @@
 #include <thread>
 #include <iostream>
 #include <algorithm>
+#include <getopt.h>
 #include <mutex>
 
 //##################################
@@ -189,6 +190,93 @@ void Logger::printBuffer() {
     buffer.clear();
 }
 
+
+//#################################
+// ParseArgs implementation
+//#################################
+
+
+void ParseArgs(int argc, char *argv[], std::filesystem::path &dirPath, std::filesystem::path &basePath, std::filesystem::path &logPath, size_t &inputBufferSize, size_t &outputBufferSize, size_t &threadCount) 
+{
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        // --key=value
+        auto eq = arg.find('=');
+        if (arg.rfind("--", 0) == 0 && eq != std::string::npos) {
+            std::string key = arg.substr(2, eq - 2);
+            std::string val = arg.substr(eq + 1);
+
+            if (key == "base") basePath = val;
+            else if (key == "log") logPath = val;
+            else if (key == "path") dirPath = val;
+            else if (key == "ibuf") inputBufferSize = std::stoull(val);
+            else if (key == "obuf") outputBufferSize = std::stoull(val);
+            else if (key == "threads") threadCount = std::stoull(val);
+            else throw std::runtime_error("Unknown option: --" + key);
+            continue;
+        }
+
+        // long option --key value
+        if (arg.rfind("--", 0) == 0) {
+            std::string key = arg.substr(2);
+            std::string val;
+            if (i + 1 < argc) {
+                val = argv[++i];
+            } else {
+                throw std::runtime_error("Missing value for option: --" + key);
+            }
+
+            if (key == "base") basePath = val;
+            else if (key == "log") logPath = val;
+            else if (key == "path") dirPath = val;
+            else if (key == "ibuf") inputBufferSize = std::stoull(val);
+            else if (key == "obuf") outputBufferSize = std::stoull(val);
+            else if (key == "threads") threadCount = std::stoull(val);
+            else throw std::runtime_error("Unknown option: --" + key);
+            continue;
+        }
+
+        // short options: -i1024 or -i 1024
+        if (arg.rfind("-", 0) == 0 && arg.size() >= 2) {
+            char opt = arg[1];
+            std::string val;
+            if (arg.size() > 2) {
+                val = arg.substr(2);
+            } else {
+                if (i + 1 < argc) {
+                    val = argv[++i];
+                } else {
+                    throw std::runtime_error(std::string("Missing value for option: -") + opt);
+                }
+            }
+
+            switch (opt) {
+                case 'b': basePath = val; break;
+                case 'l': logPath = val; break;
+                case 'p': dirPath = val; break;
+                case 'i': inputBufferSize = std::stoull(val); break;
+                case 'o': outputBufferSize = std::stoull(val); break;
+                case 't': threadCount = static_cast<size_t>(std::stoull(val)); break;
+                default:
+                    throw std::runtime_error(std::string("Unknown short option: -") + opt);
+            }
+            continue;
+        }
+
+        throw std::runtime_error("Unknown argument: " + arg);
+    }
+
+    if (dirPath.empty()) {
+        throw std::invalid_argument("Missing required argument: --path");
+    }
+    if (basePath.empty()) {
+        throw std::invalid_argument("Missing required argument: --base");
+    }
+    if (logPath.empty()) {
+        throw std::invalid_argument("Missing required argument: --log");
+    }
+}
 
 //#################################
 // ScanDirectory implementation
