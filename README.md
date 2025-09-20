@@ -65,7 +65,7 @@ scanner --base <path_to_base_csv> --log <path_to_log_file> --path <directory_to_
 
 Linux / macOS:
 ```bash
-./build/bin/scanner --base /home/user/data/base.csv --log /home/user/data/report.log --path /home/user/scan_folder
+./build/bin/scanner --base /home/user/data/KasperskyTestTask/base.csv --log /home/user/data/KasperskyTestTask/report.log --path /home/user/scan_folder
 ```
 
 Windows (cmd / PowerShell):
