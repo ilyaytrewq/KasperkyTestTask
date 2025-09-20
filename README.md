@@ -46,13 +46,6 @@ ctest --test-dir build/ --verbose
 
 После сборки бинарник будет находиться в `build/bin/scanner` (на Windows — `scanner.exe`).
 
-Если CMake не находит OpenSSL, установите пакет и повторите команду `cmake --build build/`:
-```bash
-# Debian/Ubuntu
-sudo apt update
-sudo apt install build-essential cmake libssl-dev
-```
-
 ---
 
 ## Запуск
