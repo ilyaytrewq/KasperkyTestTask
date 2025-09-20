@@ -12,22 +12,29 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
-set(LIB_SOURCES
-    src/VirusScaner.cpp
-    src/TimeGuard.cpp
+# ------------------------
+# DLL (shared library) с основной логикой
+# ------------------------
+file(GLOB LIB_SOURCES
+    ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
-add_library(virus_core STATIC ${LIB_SOURCES})
-target_include_directories(virus_core PUBLIC ${PROJECT_SOURCE_DIR}/include)
+
+add_library(virus_scanner SHARED ${LIB_SOURCES})
+target_include_directories(virus_scanner PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_compile_definitions(virus_scanner PRIVATE VIRUSSCANNER_EXPORTS)
 
 find_package(OpenSSL REQUIRED)
 if(OpenSSL_FOUND)
-    target_link_libraries(virus_core PUBLIC OpenSSL::Crypto)
+    target_link_libraries(virus_scanner PUBLIC OpenSSL::Crypto)
 else()
     message(WARNING "OpenSSL not found; MD5-related code may fail to link")
 endif()
 
+# ------------------------
+# Основной исполняемый файл scanner
+# ------------------------
 add_executable(scanner scanner.cpp)
-target_link_libraries(scanner PRIVATE virus_core)
+target_link_libraries(scanner PRIVATE virus_scanner)
 target_include_directories(scanner PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
 # ------------------------
@@ -35,7 +42,6 @@ target_include_directories(scanner PRIVATE ${PROJECT_SOURCE_DIR}/include)
 # ------------------------
 if (BUILD_TESTS)
     enable_testing()
-
     include(FetchContent)
 
     if(POLICY CMP0135)
@@ -58,7 +64,7 @@ if (BUILD_TESTS)
     if(TEST_SRC)
         add_executable(unit_tests ${TEST_SRC})
         target_include_directories(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
-        target_link_libraries(unit_tests PRIVATE virus_core GTest::gtest_main)
+        target_link_libraries(unit_tests PRIVATE virus_scanner GTest::gtest_main)
         add_test(NAME unit_tests COMMAND unit_tests)
     else()
         message(STATUS "No test source files found in ${PROJECT_SOURCE_DIR}/tests; skipping unit_tests target.")

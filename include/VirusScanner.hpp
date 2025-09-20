@@ -11,7 +11,22 @@
 #include <unordered_map>
 #include <mutex>
 
-class MD5Hasher {
+
+#if defined(_WIN32) || defined(_WIN64)
+  #ifdef VIRUSSCANNER_EXPORTS
+    #define VS_API __declspec(dllexport)
+  #else
+    #define VS_API __declspec(dllimport)
+  #endif
+#else
+  #ifdef VIRUSSCANNER_EXPORTS
+    #define VS_API __attribute__((visibility("default")))
+  #else
+    #define VS_API
+  #endif
+#endif
+
+class VS_API MD5Hasher {
     public:
         MD5Hasher();
         ~MD5Hasher() = default;
@@ -38,7 +53,7 @@ class MD5Hasher {
         unsigned int digest_len;
 };
 
-class FileScanner {
+class VS_API FileScanner {
     public:
         FileScanner(std::ifstream&& istrm, const std::filesystem::path& path, const size_t bufSize);
         ~FileScanner();
@@ -58,7 +73,7 @@ class FileScanner {
         char is_infected;
 };
 
-class VirusDatabase {
+class VS_API VirusDatabase {
     public:
         VirusDatabase(const std::filesystem::path &path);
         ~VirusDatabase() = default;
@@ -72,7 +87,7 @@ class VirusDatabase {
         
 };
 
-class Logger {
+class VS_API Logger {
     public:
         Logger(std::ofstream& ostrm, std::mutex &sharedMutex, size_t bufferSize = 16 * 1024, int countRows = 100);
         ~Logger();
@@ -92,7 +107,24 @@ class Logger {
 
 
 
-void ParseArgs(int argc, char *argv[], std::filesystem::path &dirPath, std::filesystem::path &basePath, std::filesystem::path &logPath, size_t &inputBufferSize, size_t &outputBufferSize, size_t &threadCount);
-std::tuple<unsigned int, unsigned int, unsigned int>  ScanDirectory(const std::filesystem::path& dirPath, const std::filesystem::path &basePath, const std::filesystem::path &logPath, size_t inputBufferSize = 16 * 1024 - 100, size_t outputBufferSize = 16 * 1024, unsigned int countThreads = 0); 
+VS_API std::tuple<unsigned int, unsigned int, unsigned int>  
+ScanDirectory(
+    const std::filesystem::path& dirPath,
+    const std::filesystem::path &basePath,
+    const std::filesystem::path &logPath,
+    size_t inputBufferSize = 16 * 1024 - 100, 
+    size_t outputBufferSize = 16 * 1024, 
+    unsigned int countThreads = 0
+); 
+
+VS_API void ParseArgs(
+    int argc, char *argv[], 
+    std::filesystem::path &dirPath, 
+    std::filesystem::path &basePath, 
+    std::filesystem::path &logPath, 
+    size_t &inputBufferSize, 
+    size_t &outputBufferSize, 
+    size_t &threadCount
+);
 
 #endif // VirusScanner_hpp
