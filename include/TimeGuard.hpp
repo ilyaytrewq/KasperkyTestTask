@@ -5,7 +5,21 @@
 #include <chrono>
 #include <string>
 
-class TimerGuard
+#if defined(_WIN32) || defined(_WIN64)
+  #ifdef VIRUSSCANNER_EXPORTS
+    #define VS_API __declspec(dllexport)
+  #else
+    #define VS_API __declspec(dllimport)
+  #endif
+#else
+  #ifdef VIRUSSCANNER_EXPORTS
+    #define VS_API __attribute__((visibility("default")))
+  #else
+    #define VS_API
+  #endif
+#endif
+
+class VS_API TimerGuard
 {
 private:
     std::chrono::steady_clock::time_point start_time;

@@ -1,3 +1,4 @@
+
 cmake_minimum_required(VERSION 3.19)
 project(VirusScanner LANGUAGES CXX)
 
@@ -13,6 +14,21 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 add_compile_options(-Wall -Wextra -Wpedantic)
 
 # ------------------------
+# Настройка OpenSSL
+# ------------------------
+set(OPENSSL_ROOT_DIR ${PROJECT_SOURCE_DIR}/openssl-3.5.3/x64)
+set(OPENSSL_INCLUDE_DIR ${OPENSSL_ROOT_DIR}/include)
+set(OPENSSL_LIBRARIES ${OPENSSL_ROOT_DIR}/lib)
+set(OPENSSL_BIN_DIR ${OPENSSL_ROOT_DIR}/bin)
+
+find_package(OpenSSL REQUIRED)
+if(OpenSSL_FOUND)
+    message(STATUS "Found OpenSSL: ${OPENSSL_INCLUDE_DIR}, ${OPENSSL_LIBRARIES}")
+else()
+    message(FATAL_ERROR "OpenSSL not found in ${OPENSSL_ROOT_DIR}")
+endif()
+
+# ------------------------
 # DLL (shared library) с основной логикой
 # ------------------------
 file(GLOB LIB_SOURCES
@@ -20,22 +36,31 @@ file(GLOB LIB_SOURCES
 )
 
 add_library(virus_scanner SHARED ${LIB_SOURCES})
-target_include_directories(virus_scanner PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(virus_scanner PUBLIC 
+    ${PROJECT_SOURCE_DIR}/include
+    ${OPENSSL_INCLUDE_DIR}
+)
 target_compile_definitions(virus_scanner PRIVATE VIRUSSCANNER_EXPORTS)
-
-find_package(OpenSSL REQUIRED)
-if(OpenSSL_FOUND)
-    target_link_libraries(virus_scanner PUBLIC OpenSSL::Crypto)
-else()
-    message(WARNING "OpenSSL not found; MD5-related code may fail to link")
-endif()
+target_link_libraries(virus_scanner PUBLIC OpenSSL::Crypto OpenSSL::SSL)
 
 # ------------------------
 # Основной исполняемый файл scanner
 # ------------------------
 add_executable(scanner scanner.cpp)
 target_link_libraries(scanner PRIVATE virus_scanner)
-target_include_directories(scanner PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(scanner PRIVATE 
+    ${PROJECT_SOURCE_DIR}/include
+    ${OPENSSL_INCLUDE_DIR}
+)
+
+# Копирование DLL файлов OpenSSL для scanner
+add_custom_command(TARGET scanner POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${OPENSSL_BIN_DIR}/libcrypto-3-x64.dll"
+        "${OPENSSL_BIN_DIR}/libssl-3-x64.dll"
+        $<TARGET_FILE_DIR:scanner>
+    COMMENT "Copying OpenSSL DLLs for scanner"
+)
 
 # ------------------------
 # Тесты (GoogleTest)
@@ -63,8 +88,21 @@ if (BUILD_TESTS)
 
     if(TEST_SRC)
         add_executable(unit_tests ${TEST_SRC})
-        target_include_directories(unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+        target_include_directories(unit_tests PRIVATE 
+            ${PROJECT_SOURCE_DIR}/include
+            ${OPENSSL_INCLUDE_DIR}
+        )
         target_link_libraries(unit_tests PRIVATE virus_scanner GTest::gtest_main)
+        
+        # Копирование DLL файлов OpenSSL для unit_tests
+        add_custom_command(TARGET unit_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${OPENSSL_BIN_DIR}/libcrypto-3-x64.dll"
+                "${OPENSSL_BIN_DIR}/libssl-3-x64.dll"
+                $<TARGET_FILE_DIR:unit_tests>
+            COMMENT "Copying OpenSSL DLLs for unit_tests"
+        )
+        
         add_test(NAME unit_tests COMMAND unit_tests)
     else()
         message(STATUS "No test source files found in ${PROJECT_SOURCE_DIR}/tests; skipping unit_tests target.")
