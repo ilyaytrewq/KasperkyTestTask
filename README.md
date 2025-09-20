@@ -20,8 +20,8 @@
 
 ## Требования
 
-- C++17
-- CMake ≥ 3.16
+- C++20
+- CMake ≥ 3.19
 - OpenSSL (dev headers). Примеры пакетов:
   - Debian/Ubuntu: `libssl-dev`
   - Fedora: `openssl-devel`
@@ -33,21 +33,19 @@
 
 1. Клонируйте репозиторий и перейдите в корень проекта:
 ```bash
-git clone <repo_url>
-cd <repo_dir>
+git clone https://github.com/ilyaytrewq/KasperkyTestTask.git
+cd KasperkyTestTask
 ```
 
 2. Создайте каталог сборки и соберите проект:
 ```bash
-mkdir -p build
-cd build
-cmake ..
-cmake --build . --config Release
+cmake -S . -B build
+cmake --build build/
 ```
 
 После сборки бинарник будет находиться в `build/bin/scanner` (на Windows — `scanner.exe`).
 
-Если CMake не находит OpenSSL, установите dev‑пакет и повторите команду `cmake ..`:
+Если CMake не находит OpenSSL, установите пакет и повторите команду `cmake --build build/`:
 ```bash
 # Debian/Ubuntu
 sudo apt update
@@ -125,11 +123,6 @@ File: /home/user/scan_folder/example.exe hash: a9963513d093ffb2bc7ceb9807771ad4 
 md5sum path/to/file
 ```
 
-Запуск и просмотр последних строк лога:
-```bash
-./build/bin/scanner --base base.csv --log out.log --path some_dir
-```
-
 Перестроить проект с чисткой:
 ```bash
 cmake --build build --clean-first
@@ -151,7 +144,11 @@ cmake --build build --clean-first
 │  └─ TimeGuard.cpp
 ├─ base.csv
 ├─ build/                  
-└─ tests/                  
+├─ tests/        
+│  ├─ test_filescanner_md5.cpp
+│  ├─ test_parser.cpp
+|  ├─ test_scandirectory.cpp
+|  └─ test_virusdb.cpp
 ```
 
 
