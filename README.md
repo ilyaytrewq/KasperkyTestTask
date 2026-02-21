@@ -144,10 +144,3 @@ cmake --build build --clean-first
 |  ├─ test_scandirectory.cpp
 |  └─ test_virusdb.cpp
 ```
-
-
-Если хочешь — могу:
-- создать `README.md` в корне репозитория прямо сейчас,
-- добавить пример `base.csv` в `data/`,
-- подготовить `CMakeLists.txt` для включения тестов,
-- или реализовать базовую многопоточную версию сканирования.
